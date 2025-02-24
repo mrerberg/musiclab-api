@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es2018",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "declaration": false,
+    "pretty": true,
+    "noEmitOnError": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "removeComments": true,
+    "noFallthroughCasesInSwitch": true,
+    "useDefineForClassFields": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "lib": ["esnext"],
+    "sourceMap": true
+  }
+}
