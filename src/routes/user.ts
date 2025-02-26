@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import { User } from "../models/user";
 import { FastifyInstance } from "fastify";
 
@@ -11,6 +10,11 @@ export async function UserRoutes(fastify: FastifyInstance) {
         summary: "Получение данных текущего пользователя",
         description:
           "Получение данных текущего пользователя на основе access token, передаваемого в cookies.",
+        security: [
+          {
+            BearerAuth: [],
+          },
+        ],
         parameters: [
           {
             name: "accessToken",
@@ -70,40 +74,19 @@ export async function UserRoutes(fastify: FastifyInstance) {
           },
         },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
-        const token = request.cookies.accessToken;
-
-        if (!token) {
-          return reply.status(401).send({
-            code: "UNAUTHORIZED",
-            message: "Access token missing",
+        const user = await User.findById(request.user.id).select("-password");
+        if (!user) {
+          return reply.status(404).send({
+            code: "USER_NOT_FOUND",
+            message: "User not found",
           });
         }
 
-        const secret = process.env.JWT_SECRET || "";
-
-        jwt.verify(token, secret, async (err, decoded) => {
-          if (err) {
-            return reply.status(403).send({
-              code: "INVALID_TOKEN",
-              message: "Invalid token",
-            });
-          }
-
-          const { id } = decoded as jwt.JwtPayload;
-
-          const user = await User.findById(id).select("-password");
-          if (!user) {
-            return reply.status(404).send({
-              code: "USER_NOT_FOUND",
-              message: "User not found",
-            });
-          }
-
-          return reply.send(user);
-        });
+        return reply.send(user);
       } catch (error) {
         return reply.status(500).send({
           code: "INTERNAL_ERROR",

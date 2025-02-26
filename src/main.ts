@@ -1,11 +1,14 @@
 import Fastify from "fastify";
 import path from "node:path";
-import fs from "node:fs";
 import mongoose from "mongoose";
 import cookie from "@fastify/cookie";
 import fastifyStatic from "@fastify/static";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
+import fastifyCors from "@fastify/cors";
+
+import authJwt from "./plugins/auth-jwt";
+
 import dotenv from "dotenv";
 
 import { AuthRoutes } from "./routes/auth";
@@ -19,12 +22,19 @@ const fastify = Fastify({ logger: true });
 
 fastify.register(cookie);
 
+fastify.register(fastifyCors, {
+  origin: true,
+  credentials: true,
+});
+
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const mediaDir = path.join(__dirname, "../media");
 fastify.register(fastifyStatic, {
   root: mediaDir,
   prefix: "/media/",
 });
+
+fastify.register(authJwt, { secret: process.env.JWT_SECRET || "" });
 
 fastify.register(fastifySwagger, {
   openapi: {
@@ -34,11 +44,24 @@ fastify.register(fastifySwagger, {
       version: "1.0.0",
     },
     servers: [{ url: "http://localhost:3000" }],
+    components: {
+      securitySchemes: {
+        BearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
   },
 });
 
 fastify.register(fastifySwaggerUi, {
   routePrefix: "/docs",
+  uiConfig: {
+    withCredentials: true,
+  },
+  staticCSP: true,
 });
 
 fastify.register(AuthRoutes, {
@@ -62,6 +85,7 @@ const start = async () => {
 
     await fastify.listen({ port: 3000 });
     fastify.log.info("Server running on http://localhost:3000");
+    fastify.log.info("Docs running on http://localhost:3000/docs");
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

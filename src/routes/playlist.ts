@@ -10,6 +10,7 @@ export async function PlaylistRoutes(fastify: FastifyInstance) {
         summary: "Получение всех плейлистов",
         description:
           "Возвращает список всех плейлистов с информацией о треках.",
+        security: [{ BearerAuth: [] }],
         response: {
           200: {
             description: "Список плейлистов",
@@ -27,21 +28,22 @@ export async function PlaylistRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
         },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
-        const playlists = await Playlist.find().populate("tracks");
-        return reply.send(playlists);
+        const playlists = await Playlist.find()
+          .populate("tracks", "_id")
+          .lean();
+
+        const mappedPlaylists = playlists.map((playlist) => ({
+          ...playlist,
+          tracks: playlist.tracks.map((track) => track._id.toString()),
+        }));
+
+        return reply.send(mappedPlaylists);
       } catch (error) {
         return reply
           .status(500)
@@ -55,63 +57,38 @@ export async function PlaylistRoutes(fastify: FastifyInstance) {
     {
       schema: {
         tags: ["Playlists"],
-        summary: "Получение плейлиста по id",
+        summary: "Получение плейлиста по ID",
         description:
           "Возвращает плейлист по указанному идентификатору с информацией о треках.",
+        security: [{ BearerAuth: [] }],
         params: {
           type: "object",
           properties: {
-            id: {
-              type: "string",
-              description: "Идентификатор плейлиста",
-            },
+            id: { type: "string", description: "Идентификатор плейлиста" },
           },
           required: ["id"],
         },
-        response: {
-          200: {
-            description: "Плейлист найден",
-            type: "object",
-            properties: {
-              _id: { type: "string" },
-              name: { type: "string" },
-              owner: { type: "string" },
-              tracks: {
-                type: "array",
-                items: { type: "string" },
-              },
-            },
-          },
-          404: {
-            description: "Плейлист не найден",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-        },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
-        const playlist = await Playlist.findById(request.params.id).populate(
-          "tracks"
-        );
-        if (!playlist)
+        let playlist = await Playlist.findById(request.params.id)
+          .populate("tracks", "_id")
+          .lean();
+
+        if (!playlist) {
           return reply.status(404).send({
             code: "PLAYLIST_NOT_FOUND",
             message: "Playlist not found",
           });
-        return reply.send(playlist);
+        }
+
+        const mappedPlaylist = playlist.tracks.map((track) =>
+          track._id.toString()
+        );
+
+        return reply.send(mappedPlaylist);
       } catch (error) {
         return reply
           .status(500)
@@ -127,14 +104,12 @@ export async function PlaylistRoutes(fastify: FastifyInstance) {
         tags: ["Playlists"],
         summary: "Создание нового плейлиста",
         description:
-          "Создает новый плейлист с заданным именем и списком треков. Владелец плейлиста определяется из данных аутентифицированного пользователя.",
+          "Создаёт новый плейлист с заданным именем и списком треков.",
+        security: [{ BearerAuth: [] }],
         body: {
           type: "object",
           properties: {
-            name: {
-              type: "string",
-              description: "Название плейлиста",
-            },
+            name: { type: "string", description: "Название плейлиста" },
             tracks: {
               type: "array",
               description: "Список идентификаторов треков",
@@ -143,37 +118,16 @@ export async function PlaylistRoutes(fastify: FastifyInstance) {
           },
           required: ["name"],
         },
-        response: {
-          201: {
-            description: "Плейлист успешно создан",
-            type: "object",
-            properties: {
-              _id: { type: "string" },
-              name: { type: "string" },
-              owner: { type: "string" },
-              tracks: {
-                type: "array",
-                items: { type: "string" },
-              },
-            },
-          },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-        },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
         const { name, tracks } = request.body;
-        const userId = request.user.id;
-        const playlist = new Playlist({ name, tracks, owner: userId });
+
+        const playlist = new Playlist({ name, tracks });
         await playlist.save();
+
         return reply.status(201).send(playlist);
       } catch (error) {
         return reply
@@ -190,55 +144,27 @@ export async function PlaylistRoutes(fastify: FastifyInstance) {
         tags: ["Playlists"],
         summary: "Добавление трека в плейлист",
         description: "Добавляет трек в плейлист, если его там ещё нет.",
+        security: [{ BearerAuth: [] }],
         params: {
           type: "object",
           properties: {
-            id: {
-              type: "string",
-              description: "Идентификатор плейлиста",
-            },
-            trackId: {
-              type: "string",
-              description: "Идентификатор трека",
-            },
+            id: { type: "string", description: "Идентификатор плейлиста" },
+            trackId: { type: "string", description: "Идентификатор трека" },
           },
           required: ["id", "trackId"],
         },
-        response: {
-          200: {
-            description: "Трек добавлен в плейлист",
-            type: "object",
-            properties: {
-              message: { type: "string" },
-            },
-          },
-          404: {
-            description: "Плейлист не найден",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-        },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
         const playlist = await Playlist.findById(request.params.id);
-        if (!playlist)
+        if (!playlist) {
           return reply.status(404).send({
             code: "PLAYLIST_NOT_FOUND",
             message: "Playlist not found",
           });
+        }
 
         if (!playlist.tracks.includes(request.params.trackId)) {
           playlist.tracks.push(request.params.trackId);
@@ -261,57 +187,27 @@ export async function PlaylistRoutes(fastify: FastifyInstance) {
         summary: "Удаление трека из плейлиста",
         description:
           "Удаляет трек из плейлиста по идентификаторам плейлиста и трека.",
+        security: [{ BearerAuth: [] }],
         params: {
           type: "object",
           properties: {
-            id: {
-              type: "string",
-              description: "Идентификатор плейлиста",
-            },
-            trackId: {
-              type: "string",
-              description: "Идентификатор трека",
-            },
+            id: { type: "string", description: "Идентификатор плейлиста" },
+            trackId: { type: "string", description: "Идентификатор трека" },
           },
           required: ["id", "trackId"],
         },
-        response: {
-          200: {
-            description: "Трек удалён из плейлиста",
-            type: "object",
-            properties: {
-              message: {
-                type: "string",
-              },
-            },
-          },
-          404: {
-            description: "Плейлист не найден",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-        },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
         const playlist = await Playlist.findById(request.params.id);
-        if (!playlist)
+        if (!playlist) {
           return reply.status(404).send({
             code: "PLAYLIST_NOT_FOUND",
             message: "Playlist not found",
           });
+        }
 
         playlist.tracks = playlist.tracks.filter(
           (trackId) => trackId.toString() !== request.params.trackId

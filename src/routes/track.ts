@@ -4,19 +4,60 @@ import { User } from "../models/user";
 
 export async function TrackRoutes(fastify: FastifyInstance) {
   fastify.get(
+    "/",
+    {
+      schema: {
+        tags: ["Tracks"],
+        summary: "Получение всех треков",
+        description: "Возвращает список всех треков, доступных в базе данных.",
+        security: [{ BearerAuth: [] }],
+        response: {
+          200: {
+            description: "Список всех треков",
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                _id: { type: "string" },
+                name: { type: "string" },
+                author: { type: "string" },
+                releaseDate: { type: "string" },
+                genre: { type: "string" },
+                durationInSeconds: { type: "number" },
+                album: { type: "string" },
+                previewUrl: { type: "string" },
+                trackUrl: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      preHandler: [fastify.auth],
+    },
+    async (request, reply) => {
+      try {
+        const tracks = await Track.find();
+        return reply.send(tracks);
+      } catch (error) {
+        return reply
+          .status(500)
+          .send({ code: "INTERNAL_ERROR", message: "Something went wrong" });
+      }
+    }
+  );
+
+  fastify.get(
     "/:id",
     {
       schema: {
         tags: ["Tracks"],
-        summary: "Получение трека по id",
+        summary: "Получение трека по ID",
         description: "Получение информации о треке по его идентификатору.",
+        security: [{ BearerAuth: [] }],
         params: {
           type: "object",
           properties: {
-            id: {
-              type: "string",
-              description: "Идентификатор трека",
-            },
+            id: { type: "string", description: "Идентификатор трека" },
           },
           required: ["id"],
         },
@@ -27,6 +68,13 @@ export async function TrackRoutes(fastify: FastifyInstance) {
             properties: {
               _id: { type: "string" },
               name: { type: "string" },
+              author: { type: "string" },
+              releaseDate: { type: "string" },
+              genre: { type: "string" },
+              durationInSeconds: { type: "number" },
+              album: { type: "string" },
+              previewUrl: { type: "string" },
+              trackUrl: { type: "string" },
             },
           },
           404: {
@@ -37,16 +85,9 @@ export async function TrackRoutes(fastify: FastifyInstance) {
               message: { type: "string" },
             },
           },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
         },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
@@ -55,6 +96,7 @@ export async function TrackRoutes(fastify: FastifyInstance) {
           return reply
             .status(404)
             .send({ code: "TRACK_NOT_FOUND", message: "Track not found" });
+
         return reply.send(track);
       } catch (error) {
         return reply
@@ -70,15 +112,12 @@ export async function TrackRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ["Tracks"],
         summary: "Поиск треков по имени",
-        description:
-          "Поиск треков, название которых соответствует заданной строке.",
+        description: "Поиск треков, название которых содержит заданную строку.",
+        security: [{ BearerAuth: [] }],
         params: {
           type: "object",
           properties: {
-            name: {
-              type: "string",
-              description: "Название трека для поиска",
-            },
+            name: { type: "string", description: "Название трека для поиска" },
           },
           required: ["name"],
         },
@@ -91,25 +130,21 @@ export async function TrackRoutes(fastify: FastifyInstance) {
               properties: {
                 _id: { type: "string" },
                 name: { type: "string" },
+                author: { type: "string" },
+                genre: { type: "string" },
+                releaseDate: { type: "string" },
               },
-            },
-          },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
             },
           },
         },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
         const tracks = await Track.find({
           name: new RegExp(request.params.name, "i"),
-        });
+        }).select("name author genre releaseDate");
         return reply.send(tracks);
       } catch (error) {
         return reply
@@ -125,14 +160,12 @@ export async function TrackRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ["Tracks"],
         summary: "Добавление трека в избранное",
+        security: [{ BearerAuth: [] }],
         description: "Добавление трека в список избранного пользователя.",
         params: {
           type: "object",
           properties: {
-            id: {
-              type: "string",
-              description: "Идентификатор трека",
-            },
+            id: { type: "string", description: "Идентификатор трека" },
           },
           required: ["id"],
         },
@@ -141,29 +174,12 @@ export async function TrackRoutes(fastify: FastifyInstance) {
             description: "Трек добавлен в избранное",
             type: "object",
             properties: {
-              message: {
-                type: "string",
-              },
-            },
-          },
-          404: {
-            description: "Пользователь не найден",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
               message: { type: "string" },
             },
           },
         },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
@@ -192,14 +208,12 @@ export async function TrackRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ["Tracks"],
         summary: "Удаление трека из избранного",
+        security: [{ BearerAuth: [] }],
         description: "Удаление трека из списка избранного пользователя.",
         params: {
           type: "object",
           properties: {
-            id: {
-              type: "string",
-              description: "Идентификатор трека",
-            },
+            id: { type: "string", description: "Идентификатор трека" },
           },
           required: ["id"],
         },
@@ -208,29 +222,12 @@ export async function TrackRoutes(fastify: FastifyInstance) {
             description: "Трек удален из избранного",
             type: "object",
             properties: {
-              message: {
-                type: "string",
-              },
-            },
-          },
-          404: {
-            description: "Пользователь не найден",
-            type: "object",
-            properties: {
-              code: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-          500: {
-            description: "Внутренняя ошибка сервера",
-            type: "object",
-            properties: {
-              code: { type: "string" },
               message: { type: "string" },
             },
           },
         },
       },
+      preHandler: [fastify.auth],
     },
     async (request, reply) => {
       try {
