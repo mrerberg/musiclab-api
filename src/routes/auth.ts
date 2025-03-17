@@ -270,11 +270,15 @@ export async function AuthRoutes(fastify: FastifyInstance) {
           const { accessToken, refreshToken: newRefreshToken } =
             generateTokens(user);
           reply.setCookie("accessToken", accessToken, {
+            path: "/",
             httpOnly: true,
+            secure: true,
             maxAge: 3600,
           });
-          reply.setCookie("refreshToken", newRefreshToken, {
+          reply.setCookie("refreshToken", refreshToken, {
+            path: "/",
             httpOnly: true,
+            secure: true,
             maxAge: 604800,
           });
 
