@@ -154,20 +154,21 @@ export async function AuthRoutes(fastify: FastifyInstance) {
           });
 
         const { accessToken, refreshToken } = generateTokens(user);
+
         reply.setCookie("accessToken", accessToken, {
           path: "/",
           httpOnly: true,
-          secure: true,
+          secure: "auto",
           maxAge: 3600,
         });
         reply.setCookie("refreshToken", refreshToken, {
           path: "/",
           httpOnly: true,
-          secure: true,
+          secure: "auto",
           maxAge: 604800,
         });
 
-        return reply.send({ accessToken, refreshToken });
+        reply.send({ accessToken, refreshToken });
       } catch (error) {
         return reply
           .status(500)
@@ -244,50 +245,55 @@ export async function AuthRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { refreshToken } = request.cookies;
-        if (!refreshToken)
+        if (!refreshToken) {
           return reply.status(401).send({
             code: "NO_REFRESH_TOKEN",
             message: "Refresh token missing",
           });
+        }
 
         const secret = process.env.JWT_SECRET || "";
 
-        jwt.verify(refreshToken, secret, async (err, decoded) => {
-          if (err)
-            return reply.status(403).send({
-              code: "INVALID_REFRESH_TOKEN",
-              message: "Invalid refresh token",
-            });
-
-          const { id } = decoded as jwt.JwtPayload;
-
-          const user = await User.findById(id);
-          if (!user)
-            return reply
-              .status(404)
-              .send({ code: "USER_NOT_FOUND", message: "User not found" });
-
-          const { accessToken, refreshToken: newRefreshToken } =
-            generateTokens(user);
-          reply.setCookie("accessToken", accessToken, {
-            path: "/",
-            httpOnly: true,
-            secure: true,
-            maxAge: 3600,
+        const decoded = await new Promise((resolve, reject) => {
+          jwt.verify(refreshToken, secret, (err, decoded) => {
+            if (err) return reject(err);
+            resolve(decoded);
           });
-          reply.setCookie("refreshToken", refreshToken, {
-            path: "/",
-            httpOnly: true,
-            secure: true,
-            maxAge: 604800,
-          });
-
-          return reply.send({ accessToken, refreshToken: newRefreshToken });
         });
+
+        const { id } = decoded as jwt.JwtPayload;
+
+        const user = await User.findById(id);
+        if (!user) {
+          return reply.status(404).send({
+            code: "USER_NOT_FOUND",
+            message: "User not found",
+          });
+        }
+
+        const { accessToken, refreshToken: newRefreshToken } =
+          generateTokens(user);
+
+        reply.setCookie("accessToken", accessToken, {
+          path: "/",
+          httpOnly: true,
+          secure: "auto",
+          maxAge: 3600,
+        });
+        reply.setCookie("refreshToken", newRefreshToken, {
+          path: "/",
+          httpOnly: true,
+          secure: "auto",
+          maxAge: 604800,
+        });
+
+        return reply.send({ accessToken, refreshToken: newRefreshToken });
       } catch (error) {
-        return reply
-          .status(500)
-          .send({ code: "INTERNAL_ERROR", message: "Something went wrong" });
+        console.error("Ошибка при обновлении токена:", error);
+        return reply.status(403).send({
+          code: "INVALID_REFRESH_TOKEN",
+          message: "Invalid refresh token",
+        });
       }
     }
   );
