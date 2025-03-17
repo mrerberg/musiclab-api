@@ -5,8 +5,8 @@ import cookie from "@fastify/cookie";
 import fastifyStatic from "@fastify/static";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
-import fastifyCors from "@fastify/cors";
 
+import cors from "./plugins/cors";
 import authJwt from "./plugins/auth-jwt";
 
 import dotenv from "dotenv";
@@ -20,12 +20,9 @@ dotenv.config();
 
 const fastify = Fastify({ logger: true });
 
-fastify.register(cookie);
+fastify.register(cors);
 
-fastify.register(fastifyCors, {
-  origin: true,
-  credentials: true,
-});
+fastify.register(cookie);
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const mediaDir = path.join(__dirname, "../media");
