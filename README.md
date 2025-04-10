@@ -49,3 +49,7 @@ To start the app in dev mode use command:
 ```bash
 npm run dev
 ```
+
+### Swagger
+
+You can discover server API using swagger docs: http://localhost:3000/docs
