@@ -177,6 +177,24 @@ export async function AuthRoutes(fastify: FastifyInstance) {
     }
   );
 
+  fastify.get("/logout", async (_, reply) => {
+    reply
+      .setCookie("accessToken", "", {
+        path: "/",
+        maxAge: -1,
+        httpOnly: true,
+        secure: "auto",
+      })
+      .setCookie("refreshToken", "", {
+        path: "/",
+        maxAge: -1,
+        httpOnly: true,
+        secure: "auto",
+      });
+
+    reply.send();
+  });
+
   fastify.post(
     "/refresh",
     {
